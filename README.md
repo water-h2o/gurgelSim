@@ -42,6 +42,6 @@ Now, I know that that file says WindowConfig, but that's just a remnant of the c
 ##How to Run
 
 * choose whether you want to simulate in each event single 2.5 MeV primaries ***(1e)*** or two back-to-back 1.25 MeV primaries ***(b2b)***. There's no wrong choice here, but if you run an even number of sessions it's probably better to have an equal number of simulations of each type.
-* `docker build` the corresponding docker file
-* `docker run -it -v /path/to/folder/dockerAnts/workspace1/config:/ants_config -v /path/to/folder/dockerAnts:/work <name_of_image>`
+* "`docker build`" the corresponding docker file
+* `$ docker run -it -v /path/to/folder/dockerAnts/workspace1/config:/ants_config -v /path/to/folder/dockerAnts:/work <name_of_image>`
 * it will proceed to very slowly fill up **iso_1sim/1e_or_b2b/d0**
