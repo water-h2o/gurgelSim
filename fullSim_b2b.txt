@@ -1,0 +1,293 @@
+// =====================================================================
+// == PART A -- ANTS2 GLOBAL CONFIG ====================================
+// =====================================================================
+
+config.Load("/work/Ideal_2.json")
+core.clearText()
+
+// =====================================================================
+// == PART B -- CONFIG FOR EACH STEP ===================================
+// =====================================================================
+
+//  // -- PART B.1 -- GENERAL SIMULATION CONFIG ------------------------
+
+var n_of_1e_files  = 2; // the number of files 
+var n_of_b2b_files = 2; // of each type that exist
+
+var PMresolution = 5; 
+   // sampling resolution (for PMT impulse response and signal histogram)
+var impRespFilename = "/work/PMT.txt";
+
+var inFileNameBase = "/work/iso_input/b2b/track_"
+var inFileNameExtension = ".txt"
+
+//var outFileNameBase = "/home/andrey/Prog/ants2/ideal_1sim/1e/d01/1e_"
+var outFileNameBase = "/work/iso_1sim/b2b/d01/b2b_"
+var outFileNameExtension = ".txt"
+
+//  // -- PART B.2 -- DIFFUSION CONFIG ---------------------------------
+
+var depthFrac   = 0.1;   // (0 == top, 1 == cathode)
+
+var h           = 1456;  // mm
+var v_d         = 2.0;   // mm/us
+var sigma_Tcath = 0.59;  // mm
+var sigma_Lcath = 0.85;  // us
+
+//  // -- PART B.3 -- PHOTOMULTIPLICATION CONFIG -----------------------
+
+var photonYield = 860; // ESTIMATE, ACTUALLY IT'S A FUNCTION OF WIDTH AND OTHER STUFF
+
+var gasGapBot   = 226; // Ideal_1.json gas gap
+var gasGapTop   = 231;
+
+//  // -- PART B.4 -- HITS OBJECT CONFIG -------------------------------
+
+// none needed
+
+//  // -- PART B.5 -- ABS ZERO IDX CONFIG ------------------------------
+
+// none needed
+
+//  // -- PART B.6 -- WAVEFORM OBJECT CONFIG ---------------------------
+
+// none needed
+
+// =====================================================================
+// == PART C -- THE SIMULATION PER SE ==================================
+// =====================================================================
+
+for(var curr_file_idx = 1; curr_file_idx <= n_of_1e_files; curr_file_idx++){
+
+    // -----------------------------------------------------------------
+    // -- STEP 1 -- CLEAN UP FOR NEXT ROUND + CONFIG -------------------
+    // -----------------------------------------------------------------
+
+    //  // CARRY:
+    //  //  // * impulseResponse -- PM impulse response (STEP 6)
+    //  //  //
+    //  //  // * inFileName      -- electron deposition event filename
+    //  //  //                      for performing diffusion (STEP 2)
+    //  //  //
+    //  //  // * outFileName     -- script output filename (STEP 7)
+
+    core.shellMarker("cleaning up + config")
+    core.print(      "cleaning up + config")
+
+    photon.ClearData()
+    photon.ClearTracks()
+    photon.ClearHistoryFilters()
+    photon.SetHistoryFilters_Processes([4], [])
+        // the input ([4],[]) in SetHistoryFilters_Processes means that 
+        // only the detected photons are added to the history
+    
+    var impulseResponse = core.antsGetImpulseResponse(impRespFilename, PMresolution);
+    core.shellMarker("impulse response ready")
+    core.print(      "impulse response ready")
+    
+    var inFileName = inFileNameBase + curr_file_idx + inFileNameExtension;
+    core.shellMarker("reading from file: " + inFileName)
+    core.print(      "reading from file: " + inFileName)
+    
+    var outFileName = outFileNameBase + curr_file_idx + outFileNameExtension;
+    core.shellMarker("saving to file:" + outFileName)
+    core.print(      "saving to file:" + outFileName)
+    
+    // -----------------------------------------------------------------
+    // -- STEP 2 -- DIFFUSION ------------------------------------------
+    // -----------------------------------------------------------------
+    
+    //  // CARRY:
+    //  //  // * eList -- array of arrays with size (eList.length x 3), 
+    //  //  //            representing the positions of the electrons
+    //  //  //            after diffusion (STEP 3)
+       
+    core.shellMarker("performing diffusion")
+    core.print(      "performing diffusion")
+
+    var eList = core.antsGetVolume( inFileName,
+                                     depthFrac, 
+                                             h, 
+                                           v_d, 
+                                   sigma_Tcath, 
+                                   sigma_Lcath );
+
+    // -----------------------------------------------------------------
+    // -- STEP 3 -- PHOTOMULTPLICATION ---------------------------------
+    // -----------------------------------------------------------------
+
+    //  // CARRY:
+    //  //  // nothing. It all goes into the simulation history
+
+    core.shellMarker("performing photomultiplication")
+    core.print(      "performing photomultiplication")
+
+    var x;
+    var y;
+    var z;
+
+    var eListLgth = eList.length;
+
+    for(var row = 0 ; row < eListLgth ; row++){
+    //for(var row = 0 ; row < 10 ; row++){
+
+
+        var curr_e = eList[row];
+
+        x = curr_e[0];
+        y = curr_e[1];
+        z = curr_e[2];
+       
+        t = 1000*z/v_d; 
+
+        photon.TracePhotonsS2IsotropicLite( photonYield, 
+                                                   x, y, 
+                                   gasGapBot, gasGapTop,
+                                                     -1, 
+                                                      t, 
+                                                   0.01, 
+                                                   true );
+
+        if(row % 1000 == 0){ // "progress bar" of sorts
+            
+            var photoMultProg = row/eListLgth * 100;
+            
+            core.shellMarker("photomult: b2b nº " + curr_file_idx.toString() +", " + photoMultProg.toPrecision(3) + "% of " + eListLgth.toString() + " done")
+            core.print(      "photomult: b2b nº " + curr_file_idx.toString() +", " + photoMultProg.toPrecision(3) + "% of " + eListLgth.toString() + " done")
+            
+        }
+        
+    }
+    
+    eList = []; // making it eligible for garbage collection
+    
+    // -----------------------------------------------------------------
+    // -- STEP 4 -- PMT_hits_object JSON OBJECT ------------------------
+    // -----------------------------------------------------------------
+    
+    //  // CARRY:
+    //  //  // * PMT_ID_list     -- string list where each entry 
+    //  //  //                      is the name of a PM (STEP 5, STEP 6)
+    //  //  //
+    //  //  // * PMT_hits_object -- JSON object where each label is
+    //  //  //                      the name of a PM and each 
+    //  //  //                      corresponding entry is a list 
+    //  //  //                      of times when that particular
+    //  //  //                      PM was hit by a photon (STEP 5, STEP 6)
+    
+    core.shellMarker("arranging photon hit times per PM into JSON object")
+    core.print(      "arranging photon hit times per PM into JSON object")
+
+    var PMT_ID_list = photon.getPMsWithHits(0,-1);
+        // list of strings where each entry is the name of a PM
+
+    var hitListID_time = photon.getListDetectedPMT_ID_time(0,-1); 
+        // array of arrays with size (n_hits x 2) where:
+        // 0th column -> ID of PMT that received the photon
+        // 1st column -> time when the photon was created
+
+    photon.clearHistory(); // free up memory that is no longer necessary
+
+    var PMT_hits_object = {}; // hit times per PM JSON object
+    for(var i = 0; i < PMT_ID_list.length ; i++){
+
+        PMT_hits_object[PMT_ID_list[i]] = [];
+
+    }   // this prepares PMT_hits_object with labels for each PM
+    
+    for(var i = 0; i < hitListID_time.length ; i++){
+
+        PMT_hits_object[hitListID_time[i][0].toString()].push(hitListID_time[i][1]);
+
+    }
+    
+    hitListID_time = []; // making it eligible for garbage collection
+    
+    // -----------------------------------------------------------------
+    // -- STEP 5 -- SETTING ABSOLUTE ZERO INDEX ------------------------
+    // -----------------------------------------------------------------
+
+    //  // CARRY:
+    //  //  // * PMT_hits_object (modified) -- the hit with the absolute
+    //  //  //                             smallest time was appended
+    //  //  //                             to every entry in the 
+    //  //  //                             PMT_hits_object generated in the
+    //  //  //                             previous step. This was done
+    //  //  //                             to synchronize the signals in
+    //  //  //                             waveforms (STEP 6)
+
+    core.shellMarker("setting absolute zero index and appending it to PMT_hits_object")
+    core.print(      "setting absolute zero index and appending it to PMT_hits_object")
+
+    var time_minima_per_channel = [];
+    for(var i = 0; i < PMT_ID_list.length ; i++){
+       
+        time_minima_per_channel.push(core.minimumValueInList(PMT_hits_object[PMT_ID_list[i]]));
+       
+    }
+
+    var abs_min = core.minimumValueInList(time_minima_per_channel);
+
+    for(var i = 0; i < PMT_ID_list.length ; i++){
+       
+        PMT_hits_object[PMT_ID_list[i]].push(abs_min);
+       
+    }
+
+    // -----------------------------------------------------------------
+    // -- STEP 6 -- PMT_waveforms_object JSON OBJECT -------------------
+    // -----------------------------------------------------------------
+
+    //  // CARRY:
+    //  //  // * PMT_waveforms_object -- JSON object where each label is
+    //  //  //                           the name of a PM and each 
+    //  //  //                           corresponding entry is the
+    //  //  //                           signal obtained by that 
+    //  //  //                           particular PM (STEP 7)
+
+    core.shellMarker("producing waveform object")
+    core.print(      "producing waveform object")
+
+    var PMT_waveforms_object = {}; // waveforms per PM JSON object
+    for(var i = 0; i < PMT_ID_list.length ; i++){
+
+        PMT_waveforms_object[PMT_ID_list[i]] = [];
+
+    }   // this prepares the two JSON objects with labels for each PM
+
+    for(var i = 0; i < PMT_ID_list.length ; i++){
+        
+        var PMT_this_hits = PMT_hits_object[PMT_ID_list[i]];
+            // selecting the hit list of the current PM
+        
+        PMT_hits_object[PMT_ID_list[i]] = []; // garbage collection
+        
+        var PMT_this_IW = core.antsHits2idealWaveform(PMT_this_hits, PMresolution);
+        
+        PMT_this_hits = []; // garbage collection
+        
+        PMT_this_IW[0]  = PMT_this_IW[0] - 1;
+            // generating signal of the current PM sans impulse response
+            // and removing extra count at the start (due to STEP 5)
+        
+        var PMT_this_signal = core.antsGetWaveform(impulseResponse, PMT_this_IW);
+            // convolving PMT_this_IW with the PM impulse response
+
+        PMT_this_IW = []; // garbage collection
+
+        PMT_waveforms_object[PMT_ID_list[i]].push(PMT_this_signal);
+        
+        PMT_this_signal = []; // garbage collection;
+
+    }
+
+    // -----------------------------------------------------------------
+    // -- STEP 7 -- SAVE JSON OBJECT TO FILE ---------------------------
+    // -----------------------------------------------------------------
+
+    core.print("Saving JSON object to file")
+
+    core.createFile(outFileName, false);
+    core.saveObject(outFileName, PMT_waveforms_object, true);
+
+}
