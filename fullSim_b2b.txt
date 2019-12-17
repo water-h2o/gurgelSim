@@ -11,8 +11,8 @@ core.clearText()
 
 //  // -- PART B.1 -- GENERAL SIMULATION CONFIG ------------------------
 
-var n_of_1e_files  = 2; // the number of files 
-var n_of_b2b_files = 2; // of each type that exist
+var n_of_1e_files  = 1000; // the number of files 
+var n_of_b2b_files = 1000; // of each type that exist
 
 var PMresolution = 5; 
    // sampling resolution (for PMT impulse response and signal histogram)
@@ -22,7 +22,7 @@ var inFileNameBase = "/work/iso_input/b2b/track_"
 var inFileNameExtension = ".txt"
 
 //var outFileNameBase = "/home/andrey/Prog/ants2/ideal_1sim/1e/d01/1e_"
-var outFileNameBase = "/work/iso_1sim/b2b/d01/b2b_"
+var outFileNameBase = "/work/iso_1sim/b2b/d0/b2b_"
 var outFileNameExtension = ".txt"
 
 //  // -- PART B.2 -- DIFFUSION CONFIG ---------------------------------
